@@ -35,7 +35,7 @@ export interface DshAgentSettings {
   redactSensitiveLogs: boolean;
   /** Automatically request context compaction at this percentage (0 = disabled). */
   autoCompactPercent: number;
-  /** Hard timeout for one ACP turn (0 = unlimited). */
+  /** Cancel only after this many minutes without ACP/session-log activity (0 = unlimited). */
   maxTurnMinutes: number;
 }
 

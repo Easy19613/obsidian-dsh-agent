@@ -9,6 +9,7 @@ const suites = [
   { entry: 'tests/tailer-test-entry.ts', output: 'tests/dist/tailer-test.cjs', timeout: 120000 },
   { entry: 'tests/ui-logic-entry.ts', output: 'tests/dist/ui-logic.cjs', timeout: 120000 },
   { entry: 'tests/change-tracker-async-entry.ts', output: 'tests/dist/change-tracker-async.cjs', timeout: 120000 },
+  { entry: 'tests/activity-timeout-entry.ts', output: 'tests/dist/activity-timeout.cjs', timeout: 120000 },
 ];
 
 for (const suite of suites) {

@@ -1,7 +1,7 @@
 {
   "id": "dsh-agent",
   "name": "DeepSeek Harness Agent",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "minAppVersion": "1.7.2",
   "description": "Embeds DeepSeek Harness as an AI collaborator in your vault, with native chat and Synapse conversation-map views.",
   "author": "Easy19613",

@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Embeds DeepSeek Harness (DSH) as an AI collaborator in your Obsidian vault via the ACP protocol.",
   "main": "main.js",
   "scripts": {

@@ -9,6 +9,8 @@ import { open, stat } from 'node:fs/promises';
 import type { TodoItem } from './session';
 
 export interface TailerCallbacks {
+  /** Any durable session event, including provider retry and reasoning batches. */
+  onActivity?(): void;
   onToolCall(callId: string, name: string, argumentsJson: string): void;
   onToolResult(callId: string, resultText: string, errorName: string | undefined, errorCode: string | undefined, meta: unknown): void;
   onTodoWrite(todos: TodoItem[]): void;
@@ -196,6 +198,7 @@ export class SessionTailer {
     } catch {
       return;
     }
+    this.callbacks.onActivity?.();
     const data = event.data;
     if (data === undefined) return;
     switch (event.type) {

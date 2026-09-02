@@ -28,7 +28,9 @@ const dir = mkdtempSync(join(tmpdir(), 'dsh-tailer-'));
 const filePath = join(dir, 'session.jsonl');
 writeFileSync(filePath, JSON.stringify({ type: 'step/start', seq: 1, data: { turn: 1, step: 1 } }) + '\n');
 const events: string[] = [];
+let activityEvents = 0;
 const tailer = new SessionTailer(filePath, {
+  onActivity: () => { activityEvents += 1; },
   onToolCall: (callId, name, args) => events.push('call:' + name + ':' + callId),
   onToolResult: (callId, text, errName, errCode, meta) => events.push('result:' + callId + ':' + (errCode ?? 'ok') + ':' + JSON.stringify(meta)),
   onTodoWrite: (todos) => events.push('todos:' + todos.length),
@@ -66,6 +68,7 @@ check('todo snapshot parsed (split write)', events.includes('todos:1'));
 check('title parsed', events.includes('title:标题来了'));
 check('subagent report + settlement parsed', events.includes('subagent:report:child-1:')
   && events.includes('subagent:settled:child-1:completed'), JSON.stringify(events));
+check('tailer activity: every durable progress event refreshes the watchdog', activityEvents >= 9, String(activityEvents));
 rmSync(dir, { recursive: true, force: true });
 
 // --- real fixture replay ---

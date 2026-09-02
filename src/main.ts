@@ -16,6 +16,7 @@ import {
 } from 'obsidian';
 import type { AcpClientConnection } from './acp/connection';
 import type { AcpPromptBlock, AcpRequestPermissionParams, AcpRequestPermissionResult } from './acp/types';
+import { ActivityTimeoutGuard } from './acp/activity-timeout';
 import { BackendSnapshot, DshAcpBackend } from './backend/backend';
 import { DshRuntimeInstaller, InstallStatus } from './backend/installer';
 import { PermissionModal } from './features/permissions/modal';
@@ -165,6 +166,7 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
   private ensureStartPromise: Promise<boolean> | null = null;
   private readonly turnChains = new Map<string, Promise<void>>();
   private readonly activeAssistantMessages = new Map<string, ChatMessage>();
+  private readonly turnActivityGuards = new Map<string, ActivityTimeoutGuard>();
   private readonly goalIdleGuardedMessages = new Set<string>();
   private readonly settlingConversations = new Set<string>();
   private unloading = false;
@@ -289,6 +291,8 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
       this.saveTimer = null;
     }
     this.activeAssistantMessages.clear();
+    for (const guard of this.turnActivityGuards.values()) guard.dispose();
+    this.turnActivityGuards.clear();
     this.turnChains.clear();
     // Start the final save immediately, but never resume UI work after it.
     void this.persistData();
@@ -1191,10 +1195,19 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
     this.scheduleSave();
 
     this.activeAssistantMessages.set(conversation.id, assistantMessage);
+    const timeoutMs = this.settings.maxTurnMinutes > 0
+      ? this.settings.maxTurnMinutes * 60_000
+      : 0;
+    const activityGuard = new ActivityTimeoutGuard(
+      timeoutMs,
+      () => connection.cancel(sessionId),
+    );
+    this.turnActivityGuards.set(conversation.id, activityGuard);
     const tailer = this.ensureTailer(conversation);
     if (tailer !== undefined) tailer.start(); // resume when paused
     const chunkListener = (chunkSessionId: string, chunkText: string) => {
       if (chunkSessionId !== sessionId) return;
+      activityGuard.touch();
       if (conversation.status !== 'streaming') return;
       assistantMessage.text += chunkText;
       this.emitChange();
@@ -1202,15 +1215,21 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
     const unsubscribe = connection.onMessageChunk(chunkListener);
     let finalStatus: Conversation['status'] = 'idle';
     try {
-      const timeoutMs = this.settings.maxTurnMinutes > 0
-        ? this.settings.maxTurnMinutes * 60_000
-        : 0;
-      const result = await connection.prompt(sessionId, promptBlocks, timeoutMs);
+      // The transport request itself is unlimited. The guard is reset by both
+      // ACP text chunks and durable JSONL activity, so a productive deep task
+      // may exceed the configured window without being mistaken for a hang.
+      const result = await activityGuard.wait(connection.prompt(sessionId, promptBlocks, 0));
       assistantMessage.stopReason = result.stopReason;
     } catch (error) {
-      assistantMessage.error = '请求失败: ' + String(error);
+      assistantMessage.error = String(error).includes('request inactivity timeout:')
+        ? '请求失败：连续 ' + this.settings.maxTurnMinutes + ' 分钟没有检测到后端活动，已自动停止本轮'
+        : '请求失败: ' + String(error);
       finalStatus = 'error';
     } finally {
+      activityGuard.dispose();
+      if (this.turnActivityGuards.get(conversation.id) === activityGuard) {
+        this.turnActivityGuards.delete(conversation.id);
+      }
       unsubscribe();
       this.settlingConversations.add(conversation.id);
       this.emitChange();
@@ -1819,6 +1838,7 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
     conversation.sessionLogPaths ??= [];
     if (!conversation.sessionLogPaths.includes(path)) conversation.sessionLogPaths.push(path);
     const tailer = new SessionTailer(path, {
+      onActivity: () => this.turnActivityGuards.get(conversation.id)?.touch(),
       onToolCall: (callId, name, argumentsJson) => {
         const message = this.activeAssistantMessage(conversation);
         if (message === undefined) return;
@@ -2882,8 +2902,8 @@ class DshAgentSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('单轮请求超时')
-      .setDesc('防止后端失联后界面永久停留在生成中；超时后可直接重试或从中断处继续。')
+      .setName('单轮无活动超时')
+      .setDesc('只有连续一段时间没有推理、文本、工具或重试活动才会停止；持续有进展的深度任务不受总时长限制。')
       .addDropdown((dropdown) => {
         dropdown.addOption('0', '不限制');
         dropdown.addOption('10', '10 分钟');
