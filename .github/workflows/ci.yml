@@ -19,13 +19,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - name: Verify esbuild runtime
-        run: |
-          node -e "const p = require('./node_modules/esbuild/package.json'); console.log({ node: process.version, platform: process.platform, esbuild: p.version, main: p.main, resolved: require.resolve('esbuild') })"
-          node_modules/@esbuild/linux-x64/bin/esbuild --version
-          node -e "const e = require('esbuild'); console.log({ api: e.version }); e.transformSync('const answer = 42')"
-        env:
-          ESBUILD_BINARY_PATH: ${{ github.workspace }}/node_modules/@esbuild/linux-x64/bin/esbuild
       - run: npm run test:integration
-        env:
-          ESBUILD_BINARY_PATH: ${{ github.workspace }}/node_modules/@esbuild/linux-x64/bin/esbuild

@@ -1,6 +1,7 @@
 // Bundle + run the ACP integration tests (mock server + real backend).
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import esbuild from 'esbuild';
 mkdirSync('tests/dist', { recursive: true });
 
 const suites = [
@@ -11,16 +12,16 @@ const suites = [
 ];
 
 for (const suite of suites) {
-  const bundle = spawnSync(process.execPath, [
-    'node_modules/esbuild/bin/esbuild',
-    suite.entry,
-    '--bundle', '--platform=node', '--format=cjs', '--target=node18',
-    '--external:node:*', '--outfile=' + suite.output, '--log-level=warning',
-  ], { encoding: 'utf8' });
-  if (bundle.status !== 0) {
-    console.error(bundle.stderr);
-    process.exit(1);
-  }
+  await esbuild.build({
+    entryPoints: [suite.entry],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    target: 'node18',
+    external: ['node:*'],
+    outfile: suite.output,
+    logLevel: 'warning',
+  });
   const run = spawnSync(process.execPath, [suite.output], {
     encoding: 'utf8', timeout: suite.timeout, stdio: ['ignore', 'pipe', 'pipe'],
   });
