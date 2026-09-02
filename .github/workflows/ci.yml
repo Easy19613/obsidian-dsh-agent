@@ -20,3 +20,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run test:integration
+        env:
+          ESBUILD_BINARY_PATH: ${{ github.workspace }}/node_modules/@esbuild/linux-x64/bin/esbuild
