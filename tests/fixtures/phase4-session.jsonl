@@ -1,0 +1,9 @@
+{"type":"goal/change","seq":1,"time":1800000002001,"data":{"kind":"goal/change","version":1,"operation":"create","goal":{"id":"goal-synthetic","revision":1,"objective":"Exercise goal rendering","phase":"active","maxGoalRounds":2},"roundsStarted":0}}
+{"type":"reasoning-chunks","seq0":2,"time0":1800000002002,"data":{"turn":1,"step":1,"index":0,"dt":[0,1,1],"texts":["This deterministic synthetic reasoning stream verifies that batched reasoning chunks are reconstructed in order. ","It contains enough text to exercise the rendering threshold without copying any real user conversation, prompt, workspace path, or private note content. ","The workflow lifecycle follows next."]}}
+{"type":"text-chunks","seq0":5,"time0":1800000002005,"data":{"turn":1,"step":1,"index":1,"dt":[0,1],"texts":["正在运行合成 workflow 验证。","两个子代理将按顺序记录开始与结束事件。"]}}
+{"type":"tool-workflow/run-start","seq":7,"time":1800000002007,"data":{"runId":"run-synthetic","name":"synthetic-two-agent-check"}}
+{"type":"tool-workflow/agent-start","seq":8,"time":1800000002008,"data":{"runId":"run-synthetic","seq":1,"label":"Inspect parser","phase":"Synthetic validation","childId":"child-synthetic-1"}}
+{"type":"tool-workflow/agent-start","seq":9,"time":1800000002009,"data":{"runId":"run-synthetic","seq":2,"label":"Inspect renderer","phase":"Synthetic validation","childId":"child-synthetic-2"}}
+{"type":"tool-workflow/agent-end","seq":10,"time":1800000002010,"data":{"runId":"run-synthetic","seq":1,"outcome":"completed"}}
+{"type":"tool-workflow/agent-end","seq":11,"time":1800000002011,"data":{"runId":"run-synthetic","seq":2,"outcome":"completed"}}
+{"type":"tool-workflow/run-end","seq":12,"time":1800000002012,"data":{"runId":"run-synthetic","stopReason":"completed"}}

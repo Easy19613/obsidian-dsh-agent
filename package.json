@@ -1,0 +1,42 @@
+{
+  "name": "dsh-agent",
+  "version": "0.8.3",
+  "description": "Embeds DeepSeek Harness (DSH) as an AI collaborator in your Obsidian vault via the ACP protocol.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "node esbuild.config.mjs production --no-deploy && node scripts/run-integration.mjs",
+    "test:obsidian-live": "node scripts/obsidian-live-acceptance.mjs"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "deepseek",
+    "dsh",
+    "agent",
+    "acp"
+  ],
+  "author": "Easy19613",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Easy19613/obsidian-dsh-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Easy19613/obsidian-dsh-agent/issues"
+  },
+  "homepage": "https://github.com/Easy19613/obsidian-dsh-agent#readme",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.8.7",
+    "tslib": "^2.8.0",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
+  }
+}

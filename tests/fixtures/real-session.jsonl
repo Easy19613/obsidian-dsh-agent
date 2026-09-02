@@ -1,0 +1,16 @@
+{"type":"session/title","seq":1,"time":1800000000001,"data":{"title":"Synthetic fixture session"}}
+{"type":"todo/write","seq":2,"time":1800000000002,"data":{"todos":[{"content":"Inspect synthetic input","status":"in_progress"}]}}
+{"type":"tool/call","seq":3,"time":1800000000003,"data":{"turn":1,"step":1,"callId":"call-1","name":"read","arguments":"{\"file_path\":\"README.md\"}"}}
+{"type":"tool/result","seq":4,"time":1800000000004,"data":{"turn":1,"step":1,"message":{"source":{"kind":"tool","callId":"call-1"},"content":[{"type":"tool-result","toolCallId":"call-1","content":[{"type":"text","text":"Synthetic README contents"}],"isError":false}],"role":"user","id":"result-1"}}}
+{"type":"tool/call","seq":5,"time":1800000000005,"data":{"turn":1,"step":2,"callId":"call-2","name":"glob","arguments":"{\"pattern\":\"src/**/*.ts\"}"}}
+{"type":"tool/result","seq":6,"time":1800000000006,"data":{"turn":1,"step":2,"message":{"source":{"kind":"tool","callId":"call-2"},"content":[{"type":"tool-result","toolCallId":"call-2","content":[{"type":"text","text":"src/main.ts"}],"isError":false}],"role":"user","id":"result-2"}}}
+{"type":"tool/call","seq":7,"time":1800000000007,"data":{"turn":1,"step":3,"callId":"call-3","name":"grep","arguments":"{\"pattern\":\"TODO\"}"}}
+{"type":"tool/result","seq":8,"time":1800000000008,"data":{"turn":1,"step":3,"message":{"source":{"kind":"tool","callId":"call-3"},"content":[{"type":"tool-result","toolCallId":"call-3","content":[{"type":"text","text":"No matches"}],"isError":false}],"role":"user","id":"result-3"}}}
+{"type":"tool/call","seq":9,"time":1800000000009,"data":{"turn":1,"step":4,"callId":"call-4","name":"bash","arguments":"{\"command\":\"npm test\"}"}}
+{"type":"tool/result","seq":10,"time":1800000000010,"data":{"turn":1,"step":4,"message":{"source":{"kind":"tool","callId":"call-4"},"content":[{"type":"tool-result","toolCallId":"call-4","content":[{"type":"text","text":"Synthetic command output"}],"isError":false}],"role":"user","id":"result-4"}}}
+{"type":"tool/call","seq":11,"time":1800000000011,"data":{"turn":1,"step":5,"callId":"call-5","name":"read","arguments":"{\"file_path\":\"missing.txt\"}"}}
+{"type":"tool/result","seq":12,"time":1800000000012,"data":{"turn":1,"step":5,"message":{"source":{"kind":"tool","callId":"call-5"},"content":[{"type":"tool-result","toolCallId":"call-5","content":[{"type":"text","text":"Synthetic missing file error"}],"isError":true}],"role":"user","id":"result-5"},"error":{"name":"SyntheticError","code":"SYNTHETIC_FAILURE"}}}
+{"type":"tool/call","seq":13,"time":1800000000013,"data":{"turn":1,"step":6,"callId":"call-6","name":"edit","arguments":"{\"file_path\":\"sample.txt\"}"}}
+{"type":"tool/result","seq":14,"time":1800000000014,"data":{"turn":1,"step":6,"message":{"source":{"kind":"tool","callId":"call-6"},"content":[{"type":"tool-result","toolCallId":"call-6","content":[{"type":"text","text":"Synthetic edit completed"}],"isError":false}],"role":"user","id":"result-6"}}}
+{"type":"todo/write","seq":15,"time":1800000000015,"data":{"todos":[{"content":"Inspect synthetic input","status":"completed"}]}}
+{"type":"assistant/chunk","seq":16,"time":1800000000016,"data":{"turn":1,"step":7,"chunk":{"type":"usage","usage":{"inputTokens":120,"outputTokens":40,"cacheReadTokens":16}}}}
