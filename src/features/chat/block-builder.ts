@@ -1,6 +1,9 @@
 // Pure timeline assembler: turns tailer events into ordered render blocks.
 import type { ChatMessage, GoalCard, MessageBlock, TodoItem, ToolActivity, WorkflowRun } from './session';
 
+const TIMELINE_REASONING_LIMIT = 40_000;
+const REASONING_TRUNCATION_MARK = '…（较早的思考过程已截断，完整记录仍在会话日志中）…\n';
+
 export class BlockBuilder {
   private blocks: MessageBlock[] = [];
 
@@ -21,7 +24,7 @@ export class BlockBuilder {
     position?: { turn: number; step: number },
   ): void {
     if (reasoning !== undefined && reasoning.trim() !== '') {
-      const incoming = normalizeReasoningText(reasoning);
+      const incoming = normalizeReasoningText(limitReasoning(reasoning));
       type ThinkingBlock = Extract<MessageBlock, { kind: 'thinking' }>;
       const sameStep: ThinkingBlock | undefined = position === undefined
         ? undefined
@@ -33,7 +36,7 @@ export class BlockBuilder {
       if (target !== undefined) {
         // assistant/message events are complete snapshots. Replace/extend the
         // previous snapshot instead of concatenating the whole prefix again.
-        target.text = mergeReasoningText(target.text, incoming);
+        target.text = limitReasoning(mergeReasoningText(target.text, incoming));
         if (position !== undefined) {
           target.turn = position.turn;
           target.step = position.step;
@@ -44,7 +47,7 @@ export class BlockBuilder {
           .map((block) => block.text);
         const novel = novelReasoningText(prior, incoming);
         if (novel !== '') {
-          this.blocks.push({ kind: 'thinking', text: novel, ...position });
+          this.blocks.push({ kind: 'thinking', text: limitReasoning(novel), ...position });
         }
       }
     }
@@ -86,17 +89,25 @@ export class BlockBuilder {
 export function normalizeReasoningText(text: string): string {
   const chunks = text.split(/\n+/).map((line) => line.trim()).filter((line) => line !== '');
   const output: string[] = [];
+  const seen = new Set<string>();
+  let current = '';
   for (const chunk of chunks) {
-    const current = output.join('\n');
     if (current === '') {
       output.push(chunk);
-    } else if (current === chunk || output.includes(chunk)) {
+      seen.add(chunk);
+      current = chunk;
+    } else if (current === chunk || seen.has(chunk)) {
       continue;
     } else if (chunk.startsWith(current)) {
       output.length = 0;
       output.push(chunk);
+      seen.clear();
+      seen.add(chunk);
+      current = chunk;
     } else {
       output.push(chunk);
+      seen.add(chunk);
+      current += '\n' + chunk;
     }
   }
   return output.join('\n');
@@ -110,13 +121,36 @@ export function mergeReasoningText(previous: string, incoming: string): string {
   if (next === '' || before === next || before.startsWith(next)) return before;
   if (next.startsWith(before)) return next;
 
-  const maxOverlap = Math.min(before.length, next.length);
-  for (let size = maxOverlap; size >= 12; size--) {
-    if (before.slice(-size) === next.slice(0, size)) {
-      return normalizeReasoningText(before + next.slice(size));
-    }
-  }
+  const overlap = suffixPrefixOverlap(before, next);
+  if (overlap >= 12) return normalizeReasoningText(before + next.slice(overlap));
   return normalizeReasoningText(before + '\n' + next);
+}
+
+/** Linear-time longest suffix/prefix match (avoids quadratic slice scans). */
+function suffixPrefixOverlap(before: string, next: string): number {
+  const max = Math.min(before.length, next.length);
+  if (max === 0) return 0;
+  const pattern = next.slice(0, max);
+  const prefix = new Uint32Array(pattern.length);
+  for (let i = 1, matched = 0; i < pattern.length; i++) {
+    while (matched > 0 && pattern.charCodeAt(i) !== pattern.charCodeAt(matched)) matched = prefix[matched - 1];
+    if (pattern.charCodeAt(i) === pattern.charCodeAt(matched)) matched += 1;
+    prefix[i] = matched;
+  }
+  let matched = 0;
+  const tail = before.slice(-max);
+  for (let i = 0; i < tail.length; i++) {
+    const code = tail.charCodeAt(i);
+    while (matched > 0 && code !== pattern.charCodeAt(matched)) matched = prefix[matched - 1];
+    if (code === pattern.charCodeAt(matched)) matched += 1;
+    if (matched === pattern.length && i < tail.length - 1) matched = prefix[matched - 1];
+  }
+  return matched;
+}
+
+function limitReasoning(text: string): string {
+  if (text.length <= TIMELINE_REASONING_LIMIT) return text;
+  return REASONING_TRUNCATION_MARK + text.slice(-(TIMELINE_REASONING_LIMIT - REASONING_TRUNCATION_MARK.length));
 }
 
 /** Remove a cumulative prefix already represented by earlier thinking blocks. */

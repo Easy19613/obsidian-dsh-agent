@@ -92,6 +92,11 @@ import {
   StorageStats,
 } from './persistence/data-lifecycle';
 import {
+  cloneStorageValue,
+  compactConversationForStorage,
+  rehydrateConversationForRuntime,
+} from './persistence/conversation-storage';
+import {
   attributedWorkspacePaths,
   compareWorkspaceSnapshots,
   previewLineDiff,
@@ -296,7 +301,8 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
     const loaded = (await this.loadData()) as PluginData | null;
     this.pluginDataDir = join(getVaultPath(this.app), '.obsidian', 'plugins', 'dsh-agent');
     const loadedVersion = typeof loaded?.schemaVersion === 'number' ? loaded.schemaVersion : 0;
-    if (loaded !== null && loadedVersion < PLUGIN_DATA_VERSION) {
+    const needsStorageMigration = loaded !== null && loadedVersion < PLUGIN_DATA_VERSION;
+    if (needsStorageMigration) {
       try {
         backupDataBeforeMigration(this.pluginDataDir, loadedVersion);
       } catch (error) {
@@ -370,6 +376,7 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
         conversation.selection = undefined;
       }
       repairedSyntheticTitles = repairSyntheticContextTitle(conversation) || repairedSyntheticTitles;
+      rehydrateConversationForRuntime(conversation);
       if (this.settings.redactSensitiveLogs) redactConversationActivities(conversation);
       for (const message of conversation.messages) {
         if (message.role !== 'assistant') continue;
@@ -431,31 +438,31 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
         conversation.contextTransfer = transfer.transcript !== '' ? transfer : undefined;
       }
     }
-    if (this.settings.redactSensitiveLogs) {
-      for (const conversation of this.data.deletedConversations) redactConversationActivities(conversation);
-    }
     for (const conversation of this.data.deletedConversations) {
       repairedSyntheticTitles = repairSyntheticContextTitle(conversation) || repairedSyntheticTitles;
+      rehydrateConversationForRuntime(conversation);
+      if (this.settings.redactSensitiveLogs) redactConversationActivities(conversation);
     }
     this.data.activeConversationId = resolveActiveConversationId(
       this.data.conversations,
       this.data.activeConversationId,
     );
-    if (repairedSyntheticTitles) await this.persistData();
+    if (repairedSyntheticTitles || needsStorageMigration) await this.persistData();
   }
 
   async saveSettings(): Promise<void> {
     await this.persistData();
   }
 
-  private currentData(): PluginData {
+  /** Build a detached, bounded snapshot before Obsidian serializes data.json. */
+  private persistenceSnapshot(): PluginData {
     return {
       schemaVersion: PLUGIN_DATA_VERSION,
-      settings: this.settings,
-      conversations: this.data.conversations,
-      deletedConversations: this.data.deletedConversations,
+      settings: cloneStorageValue(this.settings),
+      conversations: this.data.conversations.map(compactConversationForStorage),
+      deletedConversations: this.data.deletedConversations.map(compactConversationForStorage),
       activeConversationId: this.data.activeConversationId,
-      synapsePositions: this.data.synapsePositions,
+      synapsePositions: cloneStorageValue(this.data.synapsePositions ?? {}),
     };
   }
 
@@ -2572,15 +2579,18 @@ export default class DshAgentPlugin extends Plugin implements ChatViewHost, Syna
   private scheduleSave(): void {
     if (this.unloading) return;
     if (this.saveTimer !== null) clearTimeout(this.saveTimer);
+    const hasActiveTurn = this.data.conversations.some(
+      (conversation) => conversation.status === 'preparing' || conversation.status === 'streaming',
+    );
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
       void this.persistData();
-    }, 800);
+    }, hasActiveTurn ? 5_000 : 800);
   }
 
   /** Serialize writes so a slow older save can never overwrite a newer snapshot. */
   private persistData(): Promise<void> {
-    const snapshot = JSON.parse(JSON.stringify(this.currentData())) as PluginData;
+    const snapshot = this.persistenceSnapshot();
     const write = async (): Promise<void> => {
       try {
         await this.saveData(snapshot);
@@ -3074,10 +3084,10 @@ function permissionRisk(toolName: string, argumentsJson: string): string {
 
 function redactConversationActivities(conversation: Conversation): void {
   for (const message of conversation.messages) {
-    const activities = [
+    const activities = new Set([
       ...(message.toolActivities ?? []),
       ...(message.blocks ?? []).filter((block) => block.kind === 'tool').map((block) => block.activity),
-    ];
+    ]);
     for (const activity of activities) {
       activity.argumentsJson = redactSensitiveText(activity.argumentsJson);
       activity.resultText = redactSensitiveText(activity.resultText);

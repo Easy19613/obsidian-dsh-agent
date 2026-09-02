@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
-export const PLUGIN_DATA_VERSION = 5;
+export const PLUGIN_DATA_VERSION = 6;
 
 export interface StorageStats {
   totalBytes: number;

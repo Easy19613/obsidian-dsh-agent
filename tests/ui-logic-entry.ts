@@ -76,6 +76,13 @@ import {
   redactSensitiveText,
 } from '../src/persistence/data-lifecycle';
 import {
+  compactConversationForStorage,
+  rehydrateConversationForRuntime,
+  STORED_THINKING_LIMIT,
+  STORED_TOOL_ARGUMENT_LIMIT,
+  STORED_TOOL_RESULT_LIMIT,
+} from '../src/persistence/conversation-storage';
+import {
   attributedWorkspacePaths,
   compareWorkspaceSnapshots,
   previewLineDiff,
@@ -789,6 +796,67 @@ check('preset: code-development preset removed', AGENT_PRESETS.map((preset) => p
   const redactedText = redactSensitiveText('Authorization: Bearer abcdefghijklmnopqrstuvwxyz');
   check('privacy: bearer tokens are redacted in plain text', !redactedText.includes('abcdefghijklmnopqrstuvwxyz'), redactedText);
   check('storage: byte formatter uses readable units', formatBytes(1536) === '1.5 KB', formatBytes(1536));
+}
+{
+  const hugeResult = 'result-line\n'.repeat(20_000);
+  const hugeArguments = JSON.stringify({ path: 'paper.md', content: 'x'.repeat(50_000) });
+  const activity = {
+    callId: 'read-paper',
+    name: 'read',
+    argumentsJson: hugeArguments,
+    status: 'done' as const,
+    resultText: hugeResult,
+    meta: {
+      path: 'paper.md',
+      offset: 1,
+      lines: Array.from({ length: 5_000 }, (_, index) => ({ line: index + 1, text: 'paper '.repeat(20) })),
+    },
+    startTime: 1,
+    endTime: 2,
+  };
+  const conversation: Conversation = {
+    id: 'large-review',
+    title: '审稿',
+    workspace: 'vault',
+    status: 'idle',
+    createdAt: 1,
+    messages: [{
+      id: 'assistant-review',
+      role: 'assistant',
+      text: '完整审稿意见必须保留',
+      time: 2,
+      toolActivities: [activity],
+      reasoning: 'think\n'.repeat(20_000),
+      blocks: [
+        { kind: 'thinking', text: 'think\n'.repeat(20_000) },
+        { kind: 'tool', activity },
+        { kind: 'text', text: '完整审稿意见必须保留' },
+      ],
+    }],
+  };
+  const originalBytes = JSON.stringify(conversation).length;
+  const compact = compactConversationForStorage(conversation);
+  const storedMessage = compact.messages[0];
+  const storedTool = storedMessage.blocks?.find(
+    (block): block is Extract<NonNullable<ChatMessage['blocks']>[number], { kind: 'tool' }> => block.kind === 'tool',
+  );
+  const storedThinking = storedMessage.blocks?.find((block) => block.kind === 'thinking');
+  const storedMeta = storedTool?.activity.meta as { path?: string; lines?: unknown } | undefined;
+  check('storage: derived tool collection is omitted from snapshot', storedMessage.toolActivities === undefined);
+  check('storage: full assistant answer remains intact', storedMessage.text === '完整审稿意见必须保留'
+    && storedMessage.blocks?.some((block) => block.kind === 'text' && block.text === storedMessage.text) === true);
+  check('storage: tool payloads and thinking are bounded', (storedTool?.activity.resultText.length ?? Infinity) <= STORED_TOOL_RESULT_LIMIT
+    && (storedTool?.activity.argumentsJson.length ?? Infinity) <= STORED_TOOL_ARGUMENT_LIMIT
+    && (storedThinking?.kind === 'thinking' ? storedThinking.text.length : Infinity) <= STORED_THINKING_LIMIT);
+  check('storage: read metadata keeps location but drops duplicate line bodies', storedMeta?.path === 'paper.md'
+    && storedMeta.lines === 5_000, JSON.stringify(storedMeta));
+  check('storage: long review snapshot shrinks substantially', JSON.stringify(compact).length < originalBytes / 5,
+    JSON.stringify({ originalBytes, compactBytes: JSON.stringify(compact).length }));
+  rehydrateConversationForRuntime(compact);
+  const hydrated = compact.messages[0];
+  const hydratedTool = hydrated.blocks?.find((block) => block.kind === 'tool');
+  check('storage: runtime collection reuses canonical block activity', hydratedTool?.kind === 'tool'
+    && hydrated.toolActivities?.[0] === hydratedTool.activity);
 }
 {
   const pluginDir = mkdtempSync(join(tmpdir(), 'dsh-data-test-'));

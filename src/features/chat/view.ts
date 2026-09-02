@@ -2289,8 +2289,16 @@ function stopReasonLabel(reason: string): string {
 /** Small stable fingerprint for incremental DOM invalidation. */
 function textFingerprint(text: string): string {
   let hash = 2166136261;
-  for (let i = 0; i < text.length; i++) {
+  // Length catches streaming appends. Evenly spaced samples catch same-length
+  // replacements without rescanning multi-megabyte historical tool outputs on
+  // every UI event.
+  const step = Math.max(1, Math.floor(text.length / 256));
+  for (let i = 0; i < text.length; i += step) {
     hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  if (text.length > 0) {
+    hash ^= text.charCodeAt(text.length - 1);
     hash = Math.imul(hash, 16777619);
   }
   return text.length + ':' + (hash >>> 0).toString(36);

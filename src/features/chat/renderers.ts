@@ -218,7 +218,10 @@ export function renderThinkingBlock(parent: HTMLElement, reasoning: string): HTM
   setIcon(chevron, 'chevron-down');
   const body = wrapper.createDiv({ cls: 'dsh-thinking-body dsh-collapsed' });
   const textEl = body.createDiv({ cls: 'dsh-thinking-text' });
-  const normalized = normalizeReasoningText(reasoning);
+  // Bound before normalization so an unusually large provider snapshot cannot
+  // monopolize Electron's renderer merely to build a collapsed preview.
+  const preview = reasoning.length > 24_000 ? reasoning.slice(0, 24_000) : reasoning;
+  const normalized = normalizeReasoningText(preview);
   textEl.setText(normalized.length > 20000 ? normalized.slice(0, 20000) + '\n…（思考内容过长已截断）' : normalized);
   header.onclick = () => {
     body.toggleClass('dsh-collapsed', !body.hasClass('dsh-collapsed'));
